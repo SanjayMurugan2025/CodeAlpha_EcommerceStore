@@ -24,7 +24,7 @@ const AuthContext = createContext<AuthCtx>({
   loading: true,
   login: async () => ({ success: false }),
   register: async () => ({ success: false }),
-  signOut: () => {},
+  signOut: () => undefined,
 });
 
 const TOKEN_KEY = 'codealpha_auth_token';
@@ -36,10 +36,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Fetch user profile on boot if token exists
   useEffect(() => {
+    let isMounted = true;
     async function fetchUser() {
       if (!token) {
-        setUser(null);
-        setLoading(false);
+        if (isMounted) {
+          setUser(null);
+          setLoading(false);
+        }
         return;
       }
 
@@ -50,24 +53,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (res.ok) {
           const data = await res.json();
-          setUser(data.user);
+          if (isMounted) setUser(data.user);
         } else {
-          // Token expired or invalid
           localStorage.removeItem(TOKEN_KEY);
-          setToken(null);
-          setUser(null);
+          if (isMounted) {
+            setToken(null);
+            setUser(null);
+          }
         }
       } catch (err) {
         console.error('Failed to authenticate token:', err);
         localStorage.removeItem(TOKEN_KEY);
-        setToken(null);
-        setUser(null);
+        if (isMounted) {
+          setToken(null);
+          setUser(null);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
 
     fetchUser();
+    return () => { isMounted = false; };
   }, [token]);
 
   const login = async (email: string, password: string) => {
@@ -129,4 +136,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);

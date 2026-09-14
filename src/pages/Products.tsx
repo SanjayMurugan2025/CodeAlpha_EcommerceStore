@@ -41,8 +41,12 @@ export default function Products() {
   const maxPrice = params.get('max_price') || '';
   const minRating = params.get('min_rating') || '';
   const [searchInput, setSearchInput] = useState(search);
+  const [prevSearch, setPrevSearch] = useState(search);
 
-  useEffect(() => setSearchInput(search), [search]);
+  if (search !== prevSearch) {
+    setPrevSearch(search);
+    setSearchInput(search);
+  }
 
   useEffect(() => {
     (async () => {

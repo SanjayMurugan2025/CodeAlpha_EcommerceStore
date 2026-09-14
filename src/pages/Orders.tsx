@@ -33,11 +33,11 @@ export default function Orders() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || !token) {
-      setLoading(false);
-      return;
-    }
     (async () => {
+      if (!user || !token) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError('');
       try {
@@ -160,7 +160,7 @@ export default function Orders() {
                           <div>
                             <p className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF]">Items in this order</p>
                             <div className="mt-3 space-y-3">
-                              {itemsList.map((it: any, i: number) => (
+                              {itemsList.map((it: { image?: string; name?: string; title?: string; quantity: number; price: number }, i: number) => (
                                 <div key={i} className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white p-2.5">
                                   <img src={it.image} alt={it.name || it.title} className="h-12 w-12 rounded-lg object-cover" />
                                   <div className="min-w-0 flex-1">
@@ -175,7 +175,7 @@ export default function Orders() {
                           <div>
                             <p className="text-xs font-bold uppercase tracking-wider text-[#9CA3AF]">Delivery & totals</p>
                             <div className="mt-3 rounded-xl border border-[#E5E7EB] bg-white p-4 text-sm">
-                              <p className="font-semibold text-[#111827]">{addr?.fullName || user.name}</p>
+                              <p className="font-semibold text-[#111827]">{addr?.fullName || user?.name || 'Customer'}</p>
                               <p className="mt-1 text-[13px] text-[#6B7280]">
                                 {addr?.address ? `${addr.address}, ${addr.city} ${addr.zip}` : 'Standard Shipping'}
                               </p>

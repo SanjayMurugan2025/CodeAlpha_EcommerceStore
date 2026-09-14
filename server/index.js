@@ -11,7 +11,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'codealpha-ecommerce-secret-key-202
 app.use(cors());
 app.use(express.json());
 
-// Initialize SQLite database
+// Initialize MySQL database
 initDb().then(() => {
   console.log('Database initialized and seeded.');
 }).catch((err) => {
@@ -32,6 +32,14 @@ function authenticateToken(req, res, next) {
     req.user = user;
     next();
   });
+}
+
+// Admin Authorization Middleware
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
 }
 
 // Optional Auth Middleware (attaches user if token present)
@@ -206,15 +214,11 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// Get Single Product Details (support ID or slug)
+// Get Single Product Details (strict 404 if not found)
 app.get('/api/products/:id', async (req, res) => {
   try {
     const target = req.params.id;
-    let product = await get('SELECT * FROM products WHERE id = ?', [target]);
-    if (!product && isNaN(Number(target))) {
-      // Fallback search by title / slug matching
-      product = await get('SELECT * FROM products WHERE id = 1');
-    }
+    const product = await get('SELECT * FROM products WHERE id = ?', [target]);
 
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
@@ -232,6 +236,51 @@ app.get('/api/products/:id', async (req, res) => {
     res.json(formatted);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch product details' });
+  }
+});
+
+// ----------------------------------------------------
+// ADMIN ENDPOINTS (Requires Admin Authorization)
+// ----------------------------------------------------
+
+// Admin Dashboard Overview Stats
+app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const userCount = await get('SELECT COUNT(*) as count FROM users');
+    const orderCount = await get('SELECT COUNT(*) as count FROM orders');
+    const productCount = await get('SELECT COUNT(*) as count FROM products');
+    const totalSales = await get('SELECT SUM(total_amount) as total FROM orders');
+
+    res.json({
+      total_users: userCount.count || 0,
+      total_orders: orderCount.count || 0,
+      total_products: productCount.count || 0,
+      total_revenue: totalSales.total || 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch admin stats' });
+  }
+});
+
+// Admin All Orders List
+app.get('/api/admin/orders', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const orders = await all(
+      `SELECT o.*, u.name as customer_name, u.email as customer_email 
+       FROM orders o 
+       JOIN users u ON o.user_id = u.id 
+       ORDER BY o.id DESC`
+    );
+
+    const formatted = orders.map((o) => ({
+      ...o,
+      items: JSON.parse(o.items),
+      shipping_address: typeof o.shipping_address === 'string' && o.shipping_address.startsWith('{') ? JSON.parse(o.shipping_address) : o.shipping_address
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch admin orders' });
   }
 });
 

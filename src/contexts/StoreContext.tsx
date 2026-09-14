@@ -65,37 +65,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const [refreshTick, setRefreshTick] = useState(0);
+
   const refreshCart = useCallback(async () => {
-    if (!token || !user) {
-      setLines(readGuest());
-      setLoading(false);
-      return;
-    }
-    try {
-      const res = await fetch('/api/cart', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setLines(
-            data
-              .filter((r) => r.products)
-              .map((r) => ({ product: r.products as Product, qty: r.quantity as number, cartId: r.id as number })),
-          );
-        }
-      }
-    } catch (err) {
-      console.error('Cart fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user, token]);
+    setRefreshTick((t) => t + 1);
+  }, []);
 
   useEffect(() => {
-    setLoading(true);
-    refreshCart();
-  }, [refreshCart]);
+    let ignore = false;
+    async function loadCart() {
+      if (!token || !user) {
+        setLines(readGuest());
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch('/api/cart', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (!ignore && Array.isArray(data)) {
+            setLines(
+              data
+                .filter((r) => r.products)
+                .map((r) => ({ product: r.products as Product, qty: r.quantity as number, cartId: r.id as number })),
+            );
+          }
+        }
+      } catch (err) {
+        console.error('Cart fetch error:', err);
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }
+
+    loadCart();
+    return () => {
+      ignore = true;
+    };
+  }, [user, token, refreshTick]);
 
   const persistGuest = (next: CartLine[]) => {
     setLines(next);
@@ -262,6 +271,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useStore(): StoreCtx {
   const ctx = useContext(StoreContext);
   if (!ctx) throw new Error('useStore must be used within StoreProvider');
